@@ -44,7 +44,7 @@ public struct TelemetrySnapshot: Codable, Sendable {
 
 public enum TelemetryService {
     /// Must match the `MachServices` key in the LaunchAgent plist.
-    public static let machServiceName = "tv.mediapro.wacomdri.telemetry"
+    public static let machServiceName = "io.github.jesusluque.wacomdri.telemetry"
 
     public static var interface: NSXPCInterface {
         NSXPCInterface(with: WacomdriTelemetry.self)

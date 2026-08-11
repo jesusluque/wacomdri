@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>tv.mediapro.wacomdri</string>
+	<string>io.github.jesusluque.wacomdri</string>
 
 	<!-- Path is rewritten by `make install`. -->
 	<key>ProgramArguments</key>
@@ -27,7 +27,7 @@
 	     holds the device exclusively. -->
 	<key>MachServices</key>
 	<dict>
-		<key>tv.mediapro.wacomdri.telemetry</key>
+		<key>io.github.jesusluque.wacomdri.telemetry</key>
 		<true/>
 	</dict>
 

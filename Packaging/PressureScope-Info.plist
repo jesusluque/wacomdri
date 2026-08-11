@@ -9,7 +9,7 @@
 	<key>CFBundleExecutable</key>
 	<string>PressureScope</string>
 	<key>CFBundleIdentifier</key>
-	<string>tv.mediapro.wacomdri.PressureScope</string>
+	<string>io.github.jesusluque.wacomdri.PressureScope</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

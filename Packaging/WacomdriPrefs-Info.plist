@@ -9,7 +9,7 @@
 	<key>CFBundleExecutable</key>
 	<string>WacomdriPrefs</string>
 	<key>CFBundleIdentifier</key>
-	<string>tv.mediapro.wacomdri.prefs</string>
+	<string>io.github.jesusluque.wacomdri.prefs</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

@@ -60,7 +60,7 @@ $(BUNDLE_DIR)/PressureScope.app: build Packaging/PressureScope-Info.plist
 # Everything installs into the user's home: the driver is a LaunchAgent, not a
 # system daemon, so nothing here needs sudo.
 PREFIX  ?= $(HOME)/.local
-LABEL   := tv.mediapro.wacomdri
+LABEL   := io.github.jesusluque.wacomdri
 AGENTS  := $(HOME)/Library/LaunchAgents
 LOGDIR  := $(HOME)/Library/Logs
 PLIST   := $(AGENTS)/$(LABEL).plist
