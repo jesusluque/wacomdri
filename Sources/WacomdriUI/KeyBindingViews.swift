@@ -9,7 +9,7 @@ import SwiftUI
 /// must swallow the keystroke entirely: capturing ⌘S should record ⌘S, not save
 /// something. It also has to see keys SwiftUI never routes to a focused control,
 /// such as ⌘Q or the arrow keys.
-final class KeyCaptureController: ObservableObject {
+public final class KeyCaptureController: ObservableObject {
     @Published private(set) var isCapturing = false
     private var monitor: Any?
     private var onCapture: ((UInt16, Modifiers) -> Void)?
@@ -65,7 +65,7 @@ extension Modifiers {
 }
 
 /// One row of the ExpressKey table.
-struct KeyBindingRow: View {
+public struct KeyBindingRow: View {
     let index: Int
     /// True while the physical key is held, so the row can confirm which one it
     /// is — far easier than counting keys on the tablet.
@@ -91,7 +91,7 @@ struct KeyBindingRow: View {
         var id: String { rawValue }
     }
 
-    var body: some View {
+    public var body: some View {
         HStack(spacing: 12) {
             keyBadge
 
@@ -173,10 +173,10 @@ struct KeyBindingRow: View {
 }
 
 /// The ExpressKeys pane.
-struct ExpressKeysView: View {
+public struct ExpressKeysView: View {
     @ObservedObject var model: PreferencesModel
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("ExpressKeys")
                 .font(.headline)
@@ -214,7 +214,7 @@ struct ExpressKeysView: View {
 }
 
 /// One Touch Strip, with a live position readout.
-struct StripBindingView: View {
+public struct StripBindingView: View {
     let title: String
     let position: Double?
     @Binding var action: StripAction
@@ -243,7 +243,7 @@ struct StripBindingView: View {
         }
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(title).font(.subheadline.weight(.medium))

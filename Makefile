@@ -157,3 +157,35 @@ signing-identity:
 		echo "Done. Re-run 'make install', then grant the permissions once more."; \
 		echo "They will survive rebuilds from now on."; \
 	fi
+
+## --- System Settings pane ---------------------------------------------------
+
+# No space in the bundle's file name: make splits target names on whitespace and
+# a quoted path does not help. The name shown in System Settings comes from
+# CFBundleName in the Info.plist, so nothing is lost.
+PANE := $(BUNDLE_DIR)/WacomIntuos3.prefPane
+PANE_INSTALLED := $(HOME)/Library/PreferencePanes/WacomIntuos3.prefPane
+
+.PHONY: pane install-pane uninstall-pane
+
+pane: $(PANE)
+
+# SwiftPM has no notion of a loadable macOS bundle, so it builds a dynamic
+# library and the bundle is assembled around it here.
+$(PANE): build Packaging/WacomdriPane-Info.plist
+	rm -rf $(PANE)
+	mkdir -p $(PANE)/Contents/MacOS $(PANE)/Contents/Resources
+	cp Packaging/WacomdriPane-Info.plist $(PANE)/Contents/Info.plist
+	cp $(BUILD_DIR)/libWacomdriPane.dylib $(PANE)/Contents/MacOS/WacomdriPane
+	install_name_tool -id WacomdriPane $(PANE)/Contents/MacOS/WacomdriPane
+	codesign --force --deep --sign - $(PANE)
+	@echo "built $(PANE)"
+
+install-pane: $(PANE)
+	mkdir -p $(HOME)/Library/PreferencePanes
+	rm -rf $(PANE_INSTALLED)
+	cp -R $(PANE) $(PANE_INSTALLED)
+	@echo "Installed. It appears at the bottom of the System Settings sidebar."
+
+uninstall-pane:
+	rm -rf $(PANE_INSTALLED)

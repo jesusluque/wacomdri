@@ -11,25 +11,25 @@ import IntuosCore
 /// anything. Live tablet state comes back the other way over XPC, because the
 /// agent holds the device exclusively and the app cannot read it directly.
 @MainActor
-final class PreferencesModel: ObservableObject {
-    @Published var configuration: Configuration {
+public final class PreferencesModel: ObservableObject {
+    @Published public var configuration: Configuration {
         didSet { scheduleSave() }
     }
 
-    @Published private(set) var snapshot = TelemetrySnapshot()
-    @Published private(set) var isAgentRunning = false
-    @Published private(set) var displays: [(id: CGDirectDisplayID, bounds: CGRect)] = []
+    @Published public private(set) var snapshot = TelemetrySnapshot()
+    @Published public private(set) var isAgentRunning = false
+    @Published public private(set) var displays: [(id: CGDirectDisplayID, bounds: CGRect)] = []
 
     private let client = TelemetryClient()
     private var pollTimer: Timer?
     private var saveWorkItem: DispatchWorkItem?
 
-    init() {
+    public init() {
         configuration = Configuration.load(from: Configuration.userURL)
         displays = DisplayList.activeDisplays()
     }
 
-    func start() {
+    public func start() {
         // 30 Hz: fast enough that the pressure bar tracks the nib, slow enough
         // that polling costs nothing noticeable.
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
@@ -39,7 +39,7 @@ final class PreferencesModel: ObservableObject {
         pollTimer = timer
     }
 
-    func stop() {
+    public func stop() {
         pollTimer?.invalidate()
         pollTimer = nil
         // Make sure a pending edit is not lost when the window closes.
@@ -91,11 +91,11 @@ final class PreferencesModel: ObservableObject {
     // MARK: - Convenience
 
     /// Which ExpressKey is held right now, for highlighting a row.
-    func isKeyPressed(_ index: Int) -> Bool {
+    public func isKeyPressed(_ index: Int) -> Bool {
         snapshot.padButtons & (1 << UInt8(index)) != 0
     }
 
-    var displayLabel: [(tag: ScreenTarget, name: String)] {
+    public var displayLabel: [(tag: ScreenTarget, name: String)] {
         var options: [(ScreenTarget, String)] = [
             (.main, "Main display"),
             (.desktop, "All displays"),

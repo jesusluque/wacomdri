@@ -5,7 +5,7 @@ import SwiftUI
 
 /// The Mapping pane: which screen, which part of it, and which part of the
 /// tablet.
-struct MappingView: View {
+public struct MappingView: View {
     @ObservedObject var model: PreferencesModel
 
     private enum RegionPreset: String, CaseIterable, Identifiable {
@@ -28,7 +28,7 @@ struct MappingView: View {
         return RegionPreset.allCases.first { $0.fraction == fraction } ?? .whole
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Screen")
                 .font(.headline)

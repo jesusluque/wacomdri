@@ -8,14 +8,14 @@ import SwiftUI
 /// Showing where the pen currently sits on the curve is the whole point: a curve
 /// editor without it is guesswork, because the useful question is "what does
 /// *my* normal drawing pressure map to", not "what shape is this spline".
-struct PressureCurveEditor: View {
+public struct PressureCurveEditor: View {
     @Binding var curve: PressureCurve
     /// Current raw pressure, 0...1, or nil when nothing is touching.
     let liveInput: Double?
 
     private let handleRadius: CGFloat = 7
 
-    var body: some View {
+    public var body: some View {
         GeometryReader { geometry in
             let size = min(geometry.size.width, geometry.size.height)
             let rect = CGRect(x: 0, y: 0, width: size, height: size)
@@ -123,7 +123,7 @@ struct PressureCurveEditor: View {
 }
 
 /// The Pen pane: pressure response and barrel buttons.
-struct PenView: View {
+public struct PenView: View {
     @ObservedObject var model: PreferencesModel
 
     private var liveInput: Double? {
@@ -131,7 +131,7 @@ struct PenView: View {
         return Double(model.snapshot.rawPressure) / Double(Intuos3.maxPressure)
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Pressure response")
                 .font(.headline)
