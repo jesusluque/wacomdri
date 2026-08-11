@@ -62,6 +62,13 @@ let service = DriverService(
 
 service.onLog = { log($0) }
 
+// Live state for the preferences app. Without it the curve editor and the
+// "press a key to bind it" flow have nothing to show, since the agent holds the
+// tablet exclusively.
+let telemetry = TelemetryPublisher()
+telemetry.start()
+service.telemetry = telemetry
+
 if options.verbose {
     service.onTabletEvent = { event in
         switch event {

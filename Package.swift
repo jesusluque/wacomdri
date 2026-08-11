@@ -35,6 +35,12 @@ let package = Package(
             dependencies: ["IntuosCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // Preferences app.
+        .executableTarget(
+            name: "WacomdriPrefs",
+            dependencies: ["IntuosCore"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         .testTarget(
             name: "IntuosCoreTests",
             dependencies: ["IntuosCore"],

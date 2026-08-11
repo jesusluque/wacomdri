@@ -96,3 +96,15 @@ status:
 
 logs:
 	tail -f $(LOGDIR)/wacomdri.log
+
+# The preferences app.
+prefs: $(BUNDLE_DIR)/Wacom\ Intuos3.app
+	open "$(BUNDLE_DIR)/Wacom Intuos3.app"
+
+$(BUNDLE_DIR)/Wacom\ Intuos3.app: build Packaging/WacomdriPrefs-Info.plist
+	rm -rf "$@"
+	mkdir -p "$@/Contents/MacOS"
+	cp Packaging/WacomdriPrefs-Info.plist "$@/Contents/Info.plist"
+	cp $(BUILD_DIR)/WacomdriPrefs "$@/Contents/MacOS/WacomdriPrefs"
+	codesign --force --sign - "$@"
+	@echo "built $@"

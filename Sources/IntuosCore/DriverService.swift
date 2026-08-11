@@ -16,6 +16,10 @@ public final class DriverService {
     /// Fires on every decoded event, for live telemetry in the preferences app.
     public var onTabletEvent: ((TabletEvent) -> Void)?
 
+    /// Publishes live state to the preferences app over XPC. Optional so the
+    /// service runs headless in tests.
+    public var telemetry: TelemetryPublisher?
+
     private let transport: HIDTransport
     private var decoder = Intuos3Decoder()
     private let injector: EventInjector
@@ -78,6 +82,7 @@ public final class DriverService {
         case .connected:
             isConnected = true
             decoder.reset()
+            telemetry?.update { $0.isConnected = true }
             log("tablet connected\(transport.seize ? " (seized)" : "")")
 
         case .disconnected:
@@ -86,16 +91,58 @@ public final class DriverService {
             injector.reset()
             padMapper.reset()
             decoder.reset()
+            telemetry?.update { $0 = TelemetrySnapshot() }
             log("tablet disconnected")
 
         case .report(let bytes):
             guard let decoded = decoder.decode(bytes) else { return }
             onTabletEvent?(decoded)
+            publish(decoded)
 
             if case .pad(let sample) = decoded {
                 padMapper.handle(sample)
             } else {
                 injector.handle(decoded)
+            }
+        }
+    }
+
+    /// Mirror the decoded event into the telemetry snapshot. The curved value is
+    /// published alongside the raw one so the curve editor can show both ends of
+    /// the transformation as the user drags a control point.
+    private func publish(_ event: TabletEvent) {
+        guard let telemetry else { return }
+
+        switch event {
+        case .proximityEnter(let tool):
+            telemetry.update {
+                $0.toolType = String(describing: tool.type)
+                $0.isEraser = tool.type.isEraser
+            }
+        case .proximityExit:
+            telemetry.update {
+                $0.toolType = nil
+                $0.isEraser = false
+                $0.rawPressure = 0
+                $0.curvedPressure = 0
+                $0.tipDown = false
+            }
+        case .pen(let sample, _):
+            let curved = configuration.pressureCurve.apply(rawPressure: sample.pressure)
+            telemetry.update {
+                $0.rawPressure = sample.pressure
+                $0.curvedPressure = curved
+                $0.x = sample.x
+                $0.y = sample.y
+                $0.tiltX = sample.tiltX
+                $0.tiltY = sample.tiltY
+                $0.tipDown = sample.tipDown
+            }
+        case .pad(let sample):
+            telemetry.update {
+                $0.padButtons = sample.buttons
+                $0.strip1Position = sample.strip1Position
+                $0.strip2Position = sample.strip2Position
             }
         }
     }

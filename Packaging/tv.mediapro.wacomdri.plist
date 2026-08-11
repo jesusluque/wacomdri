@@ -22,6 +22,15 @@
 		<false/>
 	</dict>
 
+	<!-- The preferences app polls this for live tablet state; without it the
+	     curve editor and the key binder have nothing to show, since the agent
+	     holds the device exclusively. -->
+	<key>MachServices</key>
+	<dict>
+		<key>tv.mediapro.wacomdri.telemetry</key>
+		<true/>
+	</dict>
+
 	<key>StandardOutPath</key>
 	<string>__LOGDIR__/wacomdri.log</string>
 	<key>StandardErrorPath</key>
