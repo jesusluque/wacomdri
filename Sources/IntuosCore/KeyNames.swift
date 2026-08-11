@@ -57,6 +57,10 @@ extension PadAction {
             return modifiers.symbols + KeyCode.name(for: code)
         case .holdKey(let code, let modifiers):
             return "Hold " + modifiers.symbols + KeyCode.name(for: code)
+        case .leftClick: return "Left click"
+        case .rightClick: return "Right click"
+        case .middleClick: return "Middle click"
+        case .doubleClick: return "Double click"
         }
     }
 }

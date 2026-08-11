@@ -80,6 +80,10 @@ public struct KeyBindingRow: View {
             case .none: return .none
             case .tapKey: return .tap
             case .holdKey: return .hold
+            case .leftClick: return .left
+            case .rightClick: return .right
+            case .middleClick: return .middle
+            case .doubleClick: return .double
             }
         }
     }
@@ -88,6 +92,10 @@ public struct KeyBindingRow: View {
         case none = "Nothing"
         case tap = "Press key"
         case hold = "Hold key"
+        case left = "Left click"
+        case right = "Right click"
+        case middle = "Middle click"
+        case double = "Double click"
         var id: String { rawValue }
     }
 
@@ -102,11 +110,11 @@ public struct KeyBindingRow: View {
                 ForEach(BindingMode.allCases) { Text($0.rawValue).tag($0) }
             }
             .labelsHidden()
-            .frame(width: 110)
+            .frame(width: 128)
 
-            if mode == .none {
-                Text("—")
-                    .foregroundStyle(.tertiary)
+            if mode != .tap && mode != .hold {
+                Text(action.displayName)
+                    .foregroundStyle(mode == .none ? .tertiary : .secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Button(action: beginCapture) {
@@ -134,9 +142,10 @@ public struct KeyBindingRow: View {
 
     private var shortcutLabel: String {
         switch action {
-        case .none: return "—"
         case .tapKey(let code, let modifiers), .holdKey(let code, let modifiers):
             return modifiers.symbols + KeyCode.name(for: code)
+        default:
+            return action.displayName
         }
     }
 
@@ -154,20 +163,24 @@ public struct KeyBindingRow: View {
     private func changeMode(to newMode: BindingMode) {
         let existing: (UInt16, Modifiers)?
         switch action {
-        case .none: existing = nil
         case .tapKey(let code, let modifiers), .holdKey(let code, let modifiers):
             existing = (code, modifiers)
+        default:
+            existing = nil
         }
 
         switch newMode {
-        case .none:
-            action = .none
+        case .none: action = .none
         case .tap:
             action = .tapKey(
                 code: existing?.0 ?? KeyCode.space, modifiers: existing?.1 ?? [])
         case .hold:
             action = .holdKey(
                 code: existing?.0 ?? KeyCode.space, modifiers: existing?.1 ?? [])
+        case .left: action = .leftClick
+        case .right: action = .rightClick
+        case .middle: action = .middleClick
+        case .double: action = .doubleClick
         }
     }
 }

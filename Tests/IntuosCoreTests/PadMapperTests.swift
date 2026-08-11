@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+import CoreGraphics
 import Foundation
 import Testing
 @testable import IntuosCore
@@ -8,6 +9,7 @@ private final class RecordingSink: PadEventSink {
     enum Emission: Equatable {
         case key(code: UInt16, modifiers: Modifiers, down: Bool)
         case scroll(vertical: Int32, horizontal: Int32)
+        case click(button: CGMouseButton, count: Int)
     }
 
     var emissions: [Emission] = []
@@ -18,6 +20,14 @@ private final class RecordingSink: PadEventSink {
 
     func postScroll(vertical: Int32, horizontal: Int32) {
         emissions.append(.scroll(vertical: vertical, horizontal: horizontal))
+    }
+
+    func postClick(button: CGMouseButton, count: Int) {
+        emissions.append(.click(button: button, count: count))
+    }
+
+    var clicks: [Emission] {
+        emissions.filter { if case .click = $0 { return true } else { return false } }
     }
 
     var keyDowns: [UInt16] {
@@ -335,4 +345,42 @@ private func padMask(_ index: Int) -> Int { 1 << index }
     }
     #expect(vertical.count == 1)
     #expect(horizontal.count == 1)
+}
+
+// MARK: - Mouse actions on the pad
+
+@Test(arguments: [
+    (PadAction.leftClick, CGMouseButton.left, 1),
+    (PadAction.rightClick, CGMouseButton.right, 1),
+    (PadAction.middleClick, CGMouseButton.center, 1),
+    (PadAction.doubleClick, CGMouseButton.left, 2),
+])
+func expressKeysCanClick(action: PadAction, button: CGMouseButton, count: Int) {
+    let (mapper, sink) = makeMapper(keys: [action])
+
+    mapper.handle(pad(buttons: 0b0000_0001))
+
+    #expect(sink.clicks == [.click(button: button, count: count)])
+}
+
+@Test func aClickBoundKeyFiresOnceOnPressAndNothingOnRelease() {
+    // The pad resends its state while held; a click that repeated would be
+    // unusable.
+    let (mapper, sink) = makeMapper(keys: [.doubleClick])
+
+    mapper.handle(pad(buttons: 0b0000_0001))
+    mapper.handle(pad(buttons: 0b0000_0001))
+    mapper.handle(pad(buttons: 0))
+
+    #expect(sink.clicks.count == 1)
+}
+
+@Test func aStripCanBeBoundToClicks() {
+    let (mapper, sink) = makeMapper(
+        leftStrip: .keySteps(up: .leftClick, down: .rightClick))
+
+    mapper.handle(pad(strip1: 1 << 3))
+    mapper.handle(pad(strip1: 1 << 4))
+
+    #expect(sink.clicks == [.click(button: .right, count: 1)])
 }

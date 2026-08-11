@@ -67,6 +67,19 @@ public final class EventInjector {
     private var button2Down = false
     private var lastPoint: CGPoint?
     private var lastPressure: Double = 0
+
+    /// Where the currently held button went down, and whether movement since
+    /// then has passed the threshold that turns a click into a drag.
+    private var dragOrigin: CGPoint?
+    private var isDragging = false
+
+    /// How far the pen must travel from the press before drag events start.
+    ///
+    /// This is what separates a click from a drag, and it has to exist because a
+    /// pen cannot be held still the way a mouse can. Emitting drags during what
+    /// the user means as a click puts menus into drag-to-select, so releasing
+    /// dismisses them instead of leaving them open.
+    private static let dragThreshold: CGFloat = 3
     private var currentTool: ToolIdentity?
 
     public init(
@@ -130,6 +143,8 @@ public final class EventInjector {
         releaseHeldButtons()
         currentTool = nil
         lastPoint = nil
+        dragOrigin = nil
+        isDragging = false
     }
 
     // MARK: - Pen
@@ -145,6 +160,7 @@ public final class EventInjector {
         // every down/up lands at the position it actually happened.
         if sample.tipDown != tipDown {
             tipDown = sample.tipDown
+            beginOrEndDrag(pressed: tipDown, at: point)
             post(
                 type: tipDown ? .leftMouseDown : .leftMouseUp,
                 button: .left, at: point, sample: sample, tool: tool, pressure: pressure)
@@ -153,6 +169,7 @@ public final class EventInjector {
 
         if wantButton1 != button1Down {
             button1Down = wantButton1
+            beginOrEndDrag(pressed: wantButton1, at: point)
             perform(barrelButton1, down: wantButton1,
                     at: point, sample: sample, tool: tool, pressure: pressure)
             return
@@ -160,25 +177,30 @@ public final class EventInjector {
 
         if wantButton2 != button2Down {
             button2Down = wantButton2
+            beginOrEndDrag(pressed: wantButton2, at: point)
             perform(barrelButton2, down: wantButton2,
                     at: point, sample: sample, tool: tool, pressure: pressure)
             return
         }
 
         // No transition: a move, or a drag if something is held.
-        //
-        // A pen is never perfectly still, so holding it against the tablet used
-        // to emit a continuous stream of drag events. Menus read that as
-        // drag-to-select and dismiss on release, which is why clicking a
-        // dropdown or a context menu would open it and then lose it the moment
-        // the tip or the barrel button came up.
-        //
-        // Movement that does not shift the cursor by a whole pixel is therefore
-        // dropped — unless pressure changed, which still matters to a drawing
-        // app even when the nib has not travelled.
-        if let last = lastPoint,
-           last.rounded() == point.rounded(),
-           abs(pressure - lastPressure) < 0.002 {
+        let anyButtonHeld = tipDown || button1Down || button2Down
+
+        if anyButtonHeld {
+            // Suppress everything until the pen has travelled far enough for
+            // this to be a drag rather than a click. Without this, hand tremor
+            // alone turns every click into a drag, and menus dismiss on release.
+            if !isDragging {
+                guard let origin = dragOrigin else { return }
+                let travelled = hypot(point.x - origin.x, point.y - origin.y)
+                guard travelled >= Self.dragThreshold else { return }
+                isDragging = true
+            }
+        } else if let last = lastPoint,
+                  last.rounded() == point.rounded(),
+                  abs(pressure - lastPressure) < 0.002 {
+            // Hovering: no point emitting movement that does not move the
+            // cursor, and it keeps the event rate down.
             return
         }
 
@@ -201,6 +223,21 @@ public final class EventInjector {
         post(type: type, button: button, at: point, sample: sample, tool: tool, pressure: pressure)
     }
 
+    /// Track where a press started so movement can be judged against it.
+    private func beginOrEndDrag(pressed: Bool, at point: CGPoint) {
+        if pressed {
+            // Only the first button down starts the measurement; a second
+            // button pressed mid-drag must not reset it.
+            if dragOrigin == nil {
+                dragOrigin = point
+                isDragging = false
+            }
+        } else if !tipDown && !button1Down && !button2Down {
+            dragOrigin = nil
+            isDragging = false
+        }
+    }
+
     /// Carry out a barrel button transition, whatever it is bound to.
     private func perform(
         _ action: BarrelAction, down: Bool, at point: CGPoint,
@@ -216,14 +253,24 @@ public final class EventInjector {
 
         case .doubleClick:
             // Only on the press; a double click is a gesture, not a held state.
-            // The second click carries clickState 2, which is what makes the
-            // system treat the pair as a double click rather than two singles.
             guard down else { break }
-            for clickState in 1...2 {
-                post(type: .leftMouseDown, button: .left, at: point,
-                     sample: sample, tool: tool, pressure: pressure, clickState: clickState)
-                post(type: .leftMouseUp, button: .left, at: point,
-                     sample: sample, tool: tool, pressure: pressure, clickState: clickState)
+
+            post(type: .leftMouseDown, button: .left, at: point,
+                 sample: sample, tool: tool, pressure: pressure, clickState: 1)
+            post(type: .leftMouseUp, button: .left, at: point,
+                 sample: sample, tool: tool, pressure: pressure, clickState: 1)
+
+            // The second click has to arrive a moment later. Four events sharing
+            // one instant do not read as a double click: the gap is part of the
+            // gesture, and clickState 2 alone is not enough. 60 ms sits well
+            // inside the system's double-click interval without being visible.
+            let delayed = sample
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
+                guard let self else { return }
+                self.post(type: .leftMouseDown, button: .left, at: point,
+                          sample: delayed, tool: tool, pressure: pressure, clickState: 2)
+                self.post(type: .leftMouseUp, button: .left, at: point,
+                          sample: delayed, tool: tool, pressure: pressure, clickState: 2)
             }
 
         case .tapKey(let code, let modifiers):
@@ -301,9 +348,15 @@ public final class EventInjector {
         lastPressure = pressure
 
         // A click state of 0 on a down event makes some apps ignore the click.
-        if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown
-            || type == .leftMouseUp || type == .rightMouseUp || type == .otherMouseUp {
+        switch type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown,
+             .leftMouseUp, .rightMouseUp, .otherMouseUp,
+             // Drags belong to the click that started them; leaving this at zero
+             // makes the sequence look malformed to anything tracking a drag.
+             .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
             event.setIntegerValueField(.mouseEventClickState, value: Int64(clickState))
+        default:
+            break
         }
 
         event.post(tap: .cghidEventTap)

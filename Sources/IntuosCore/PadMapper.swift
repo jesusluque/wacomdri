@@ -24,13 +24,29 @@ public struct Modifiers: OptionSet, Codable, Sendable, Hashable {
 }
 
 /// What pressing an ExpressKey does.
-public enum PadAction: Codable, Sendable, Equatable {
+///
+/// Deliberately the same vocabulary as `BarrelAction`: there is no reason a key
+/// on the tablet should be able to do less than a button on the pen.
+public enum PadAction: Codable, Sendable, Equatable, Hashable {
     case none
     /// Press and release the key immediately — for one-shot commands like undo.
     case tapKey(code: UInt16, modifiers: Modifiers)
     /// Hold the key for as long as the ExpressKey is held — for modal tools,
     /// e.g. holding space to pan.
     case holdKey(code: UInt16, modifiers: Modifiers)
+    case leftClick
+    case rightClick
+    case middleClick
+    case doubleClick
+
+    var mouseButton: CGMouseButton? {
+        switch self {
+        case .leftClick, .doubleClick: return .left
+        case .rightClick: return .right
+        case .middleClick: return .center
+        case .none, .tapKey, .holdKey: return nil
+        }
+    }
 }
 
 /// What sliding a finger along a Touch Strip does.
@@ -100,6 +116,9 @@ public struct PadConfiguration: Codable, Sendable, Equatable {
 public protocol PadEventSink: AnyObject {
     func postKey(code: UInt16, modifiers: Modifiers, down: Bool)
     func postScroll(vertical: Int32, horizontal: Int32)
+    /// A click at wherever the cursor currently is. `count` of 2 is a double
+    /// click, which needs the second click to arrive a moment after the first.
+    func postClick(button: CGMouseButton, count: Int)
 }
 
 /// The real sink: synthesises system-wide keyboard and scroll events.
@@ -120,6 +139,37 @@ public final class SystemPadEventSink: PadEventSink {
             wheel1: vertical, wheel2: horizontal, wheel3: 0)
         else { return }
         event.post(tap: .cghidEventTap)
+    }
+
+    public func postClick(button: CGMouseButton, count: Int) {
+        // The pad has no position of its own, so a click lands wherever the
+        // pointer already is — which is where the user is looking.
+        guard let location = CGEvent(source: nil)?.location else { return }
+
+        let down: CGEventType
+        let up: CGEventType
+        switch button {
+        case .right: down = .rightMouseDown; up = .rightMouseUp
+        case .center: down = .otherMouseDown; up = .otherMouseUp
+        default: down = .leftMouseDown; up = .leftMouseUp
+        }
+
+        func click(_ clickState: Int64) {
+            for type in [down, up] {
+                guard let event = CGEvent(
+                    mouseEventSource: nil, mouseType: type,
+                    mouseCursorPosition: location, mouseButton: button)
+                else { continue }
+                event.setIntegerValueField(.mouseEventClickState, value: clickState)
+                event.post(tap: .cghidEventTap)
+            }
+        }
+
+        click(1)
+        guard count > 1 else { return }
+        // The gap is part of the gesture; two clicks sharing one instant do not
+        // read as a double click however the click state is labelled.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { click(2) }
     }
 }
 
@@ -204,6 +254,12 @@ public final class PadMapper {
                 }
             case .holdKey(let code, let modifiers):
                 sink.postKey(code: code, modifiers: modifiers, down: pressed)
+            case .leftClick, .rightClick, .middleClick:
+                if pressed, let button = configuration.keys[index].mouseButton {
+                    sink.postClick(button: button, count: 1)
+                }
+            case .doubleClick:
+                if pressed { sink.postClick(button: .left, count: 2) }
             }
         }
 
@@ -274,6 +330,10 @@ public final class PadMapper {
         case .tapKey(let code, let modifiers), .holdKey(let code, let modifiers):
             sink.postKey(code: code, modifiers: modifiers, down: true)
             sink.postKey(code: code, modifiers: modifiers, down: false)
+        case .leftClick, .rightClick, .middleClick:
+            if let button = action.mouseButton { sink.postClick(button: button, count: 1) }
+        case .doubleClick:
+            sink.postClick(button: .left, count: 2)
         }
     }
 }
