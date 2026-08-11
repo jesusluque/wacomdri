@@ -12,9 +12,7 @@ tilt, no eraser, and no ExpressKeys. This project puts them back.
 Everything here runs in userspace. No kernel extension, no DriverKit, no
 entitlements from Apple, and it works with SIP enabled on Apple Silicon.
 
-> Status: the input and output paths are both proven on real hardware and the
-> core is complete and tested. The daemon and the preferences app are still
-> being built — see [Status](#status).
+> Status: complete and working on real hardware. See [Status](#status).
 
 ## How it works
 
@@ -72,6 +70,44 @@ reports (see [`fixtures/`](fixtures/)):
   position makes scrolling accelerate exponentially along the strip.
 - Reading input reports needs no root, only Input Monitoring.
 
+## Installing
+
+```sh
+make install
+```
+
+Everything goes into your home directory — the driver is a per-user LaunchAgent,
+not a system daemon, so **nothing here needs sudo**. That is measured, not
+assumed: seizing the tablet and reading its reports both succeed unprivileged,
+and while seized a pen sweep worth 191x162 screen pixels moved the cursor by
+17x16 px, so Apple's generic driver really is detached and there is no duplicate
+cursor motion.
+
+macOS will then need two permissions granted to `~/.local/bin/wacomdrid`, under
+System Settings > Privacy & Security:
+
+- **Input Monitoring**, to read the tablet at all.
+- **Accessibility**, to post events. Without it `CGEvent.post` silently discards
+  everything, which looks exactly like a broken driver.
+
+`make uninstall` removes the agent and leaves your settings alone.
+
+## Configuring
+
+```sh
+make prefs
+```
+
+Three panes: screen mapping, pen response, and the pad. There is no apply
+button — edits are written to the config file, which the agent watches and
+reloads in place.
+
+Press a key on the tablet and its badge lights up in the app, so binding key 6
+does not mean counting keys along the edge and hoping. Bindings are captured by
+pressing the actual shortcut. The pressure curve plots your current reading on
+it as you press, which answers the question that matters: what does *my* normal
+drawing pressure map to.
+
 ## Building
 
 Requires Xcode and macOS 15 or later.
@@ -119,8 +155,8 @@ strip of unused tablet surface.
 | Screen mapping and pressure curves | done |
 | Event injection | done, verified on macOS 26.5 / Apple Silicon |
 | ExpressKeys and Touch Strips | done |
-| Daemon and launchd integration | in progress |
-| Preferences app | in progress |
+| Agent and launchd integration | done, installs as a per-user LaunchAgent |
+| Preferences app | done |
 
 ## Licence
 
