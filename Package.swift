@@ -4,11 +4,6 @@ import PackageDescription
 let package = Package(
     name: "wacomdri",
     platforms: [.macOS(.v15)],
-    products: [
-        // Built as a dynamic library, then assembled into a .prefPane bundle by
-        // the Makefile — SwiftPM has no notion of a loadable macOS bundle.
-        .library(name: "WacomdriPane", type: .dynamic, targets: ["WacomdriPane"]),
-    ],
     targets: [
         .target(
             name: "IntuosCore",
@@ -50,12 +45,6 @@ let package = Package(
         // Preferences app.
         .executableTarget(
             name: "WacomdriPrefs",
-            dependencies: ["IntuosCore", "WacomdriUI"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
-        ),
-        // System Settings pane.
-        .target(
-            name: "WacomdriPane",
             dependencies: ["IntuosCore", "WacomdriUI"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

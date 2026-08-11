@@ -158,34 +158,22 @@ signing-identity:
 		echo "They will survive rebuilds from now on."; \
 	fi
 
-## --- System Settings pane ---------------------------------------------------
+## --- Application ------------------------------------------------------------
 
-# No space in the bundle's file name: make splits target names on whitespace and
-# a quoted path does not help. The name shown in System Settings comes from
-# CFBundleName in the Info.plist, so nothing is lost.
-PANE := $(BUNDLE_DIR)/WacomIntuos3.prefPane
-PANE_INSTALLED := $(HOME)/Library/PreferencePanes/WacomIntuos3.prefPane
+# A System Settings pane would be the obvious home for this, but third-party
+# panes no longer load on macOS 26: a four-line AppKit pane with a valid
+# signature fails with the same ViewBridge error as a real one. The API is gone
+# in practice, so the preferences ship as an ordinary application.
+APP_NAME  := Wacom Intuos3
+APP_DIR   := $(if $(wildcard /Applications/.),/Applications,$(HOME)/Applications)
 
-.PHONY: pane install-pane uninstall-pane
+.PHONY: install-app uninstall-app
 
-pane: $(PANE)
+install-app: $(BUNDLE_DIR)/Wacom\ Intuos3.app
+	mkdir -p "$(APP_DIR)"
+	rm -rf "$(APP_DIR)/$(APP_NAME).app"
+	cp -R "$(BUNDLE_DIR)/$(APP_NAME).app" "$(APP_DIR)/"
+	@echo "Installed $(APP_DIR)/$(APP_NAME).app — it is now in Launchpad and Spotlight."
 
-# SwiftPM has no notion of a loadable macOS bundle, so it builds a dynamic
-# library and the bundle is assembled around it here.
-$(PANE): build Packaging/WacomdriPane-Info.plist
-	rm -rf $(PANE)
-	mkdir -p $(PANE)/Contents/MacOS $(PANE)/Contents/Resources
-	cp Packaging/WacomdriPane-Info.plist $(PANE)/Contents/Info.plist
-	cp $(BUILD_DIR)/libWacomdriPane.dylib $(PANE)/Contents/MacOS/WacomdriPane
-	install_name_tool -id WacomdriPane $(PANE)/Contents/MacOS/WacomdriPane
-	codesign --force --deep --sign - $(PANE)
-	@echo "built $(PANE)"
-
-install-pane: $(PANE)
-	mkdir -p $(HOME)/Library/PreferencePanes
-	rm -rf $(PANE_INSTALLED)
-	cp -R $(PANE) $(PANE_INSTALLED)
-	@echo "Installed. It appears at the bottom of the System Settings sidebar."
-
-uninstall-pane:
-	rm -rf $(PANE_INSTALLED)
+uninstall-app:
+	rm -rf "$(APP_DIR)/$(APP_NAME).app"

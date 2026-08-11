@@ -95,8 +95,17 @@ System Settings > Privacy & Security:
 ## Configuring
 
 ```sh
-make prefs
+make install-app
 ```
+
+Installs **Wacom Intuos3.app** into /Applications, where Launchpad and Spotlight
+can find it. (`make prefs` runs it straight from the build directory instead.)
+
+A System Settings pane would be the obvious home for this, and there is no way
+to build one: third-party preference panes no longer load on macOS 26. A
+four-line AppKit pane, correctly signed and with a valid Info.plist, fails with
+the same `ViewBridge error 14` as a real one — so the API is gone in practice,
+whatever the headers still say.
 
 Three panes: screen mapping, pen response, and the pad. There is no apply
 button — edits are written to the config file, which the agent watches and
