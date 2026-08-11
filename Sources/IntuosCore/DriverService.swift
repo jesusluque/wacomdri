@@ -44,8 +44,12 @@ public final class DriverService {
         }
         if !EventInjector.canPostEvents {
             // Not fatal, but nothing will reach any application until it is
-            // granted, and the silence is otherwise baffling.
-            log("WARNING: Accessibility not granted — posted events will be discarded")
+            // granted, and the silence is otherwise baffling. Prompting also
+            // registers the binary in the Accessibility list, sparing the user
+            // from hunting for an executable inside a hidden directory.
+            log("Accessibility not granted — prompting")
+            EventInjector.requestAccessibilityPermission()
+            log("WARNING: until Accessibility is granted, posted events are discarded")
         }
 
         transport.onEvent = { [weak self] event in

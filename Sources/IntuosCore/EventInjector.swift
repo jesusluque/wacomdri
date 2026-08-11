@@ -53,6 +53,22 @@ public final class EventInjector {
     /// from a decoding bug unless it is checked explicitly.
     public static var canPostEvents: Bool { AXIsProcessTrusted() }
 
+    /// Ask macOS to prompt for Accessibility.
+    ///
+    /// There is no API to request this the way Input Monitoring can be
+    /// requested; the only lever is this options dictionary, which shows the
+    /// standard dialog and — crucially — registers the binary in the
+    /// Accessibility list. Without it the user has to add the executable by
+    /// hand, which means navigating to a hidden directory in an open panel.
+    ///
+    /// - Returns: whether permission is already granted. A false return means
+    ///   the prompt was shown, not that it was refused.
+    @discardableResult
+    public static func requestAccessibilityPermission() -> Bool {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true]
+        return AXIsProcessTrustedWithOptions(options as CFDictionary)
+    }
+
     public func handle(_ event: TabletEvent) {
         switch event {
         case .proximityEnter(let tool):
