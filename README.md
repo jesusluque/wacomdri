@@ -68,7 +68,18 @@ reports (see [`fixtures/`](fixtures/)):
   the twelve powers of two, `1, 2, 4 … 2048`: it is a row of discrete capacitive
   pads and the raw value says *which pad* is covered. Treating that number as a
   position makes scrolling accelerate exponentially along the strip.
-- Reading input reports needs no root, only Input Monitoring.
+- Reading input reports needs no root, only Input Monitoring, and seizing the
+  device works unprivileged too.
+
+Two things about macOS itself cost more time than the protocol did:
+
+- **An ad-hoc signature identifies a program by the hash of its own contents**,
+  so every rebuild is a different program and the Privacy permissions granted to
+  the previous build silently stop applying — while still showing as granted.
+  `make signing-identity` fixes this permanently.
+- **A pen is not a mouse held still.** Emitting a drag event per report turned
+  every click into a drag, which put menus into drag-to-select so they dismissed
+  on release. Drags now wait until the pen has travelled far enough to mean it.
 
 ## Installing
 
@@ -91,6 +102,20 @@ System Settings > Privacy & Security:
   everything, which looks exactly like a broken driver.
 
 `make uninstall` removes the agent and leaves your settings alone.
+
+## What it does
+
+- 1024 pressure levels, tilt, and the eraser end of the pen.
+- Screen mapping to the whole desktop, one display, or an arbitrary zone of one,
+  dragged and resized over a scale model of the screen. Zones are stored as
+  fractions, so they survive a resolution change.
+- Aspect correction that crops the *tablet* rather than the screen, so a circle
+  stays a circle and every pixel stays reachable.
+- An editable pressure curve that plots your current reading on it as you press.
+- Both positions of the pen's rocker, and all eight ExpressKeys, bindable to a
+  click, a double click, a keystroke, or a held key.
+- Touch Strips bound to scrolling or to repeated keystrokes.
+- Adjustable double-click speed, and double-clicking by tapping the nib twice.
 
 ## Configuring
 
@@ -123,7 +148,7 @@ Requires Xcode and macOS 15 or later.
 
 ```sh
 make build     # everything
-make test      # 91 tests, including golden tests over captured hardware data
+make test      # 105 tests, including golden tests over captured hardware data
 ```
 
 ## Tools
@@ -166,6 +191,7 @@ strip of unused tablet surface.
 | ExpressKeys and Touch Strips | done |
 | Agent and launchd integration | done, installs as a per-user LaunchAgent |
 | Preferences app | done |
+| Out of scope | the 2D mouse and lens cursor: recognised and dropped |
 
 ## Licence
 
