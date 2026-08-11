@@ -70,7 +70,15 @@ PLIST   := $(AGENTS)/$(LABEL).plist
 install: release
 	mkdir -p $(PREFIX)/bin $(AGENTS) $(LOGDIR)
 	cp $(BUILD_DIR)/wacomdrid $(PREFIX)/bin/wacomdrid
-	codesign --force --sign - $(PREFIX)/bin/wacomdrid
+	@if security find-identity -v -p codesigning 2>/dev/null | grep -q wacomdri-self-signed; then \
+		echo "codesign (stable identity)"; \
+		codesign --force --sign wacomdri-self-signed \
+			--identifier $(LABEL) $(PREFIX)/bin/wacomdrid; \
+	else \
+		echo "codesign (ad-hoc — Privacy permissions will need re-granting after"; \
+		echo "          each rebuild; run 'make signing-identity' to avoid that)"; \
+		codesign --force --sign - --identifier $(LABEL) $(PREFIX)/bin/wacomdrid; \
+	fi
 	sed -e 's|__PREFIX__|$(PREFIX)|g' -e 's|__LOGDIR__|$(LOGDIR)|g' \
 		Packaging/$(LABEL).plist > $(PLIST)
 	-launchctl bootout gui/$$(id -u)/$(LABEL) 2>/dev/null
@@ -108,3 +116,44 @@ $(BUNDLE_DIR)/Wacom\ Intuos3.app: build Packaging/WacomdriPrefs-Info.plist
 	cp $(BUILD_DIR)/WacomdriPrefs "$@/Contents/MacOS/WacomdriPrefs"
 	codesign --force --sign - "$@"
 	@echo "built $@"
+
+## --- Stable signing identity ------------------------------------------------
+
+# Ad-hoc signatures identify a program by the hash of its contents, so every
+# rebuild looks like a different program to macOS and the Privacy permissions
+# granted to the previous build stop applying. That turns every update into a
+# round of re-granting Input Monitoring and Accessibility by hand.
+#
+# Signing with a real identity fixes it: the requirement becomes the certificate
+# and the identifier, both of which survive a rebuild. A self-signed certificate
+# is enough — this is never distributed, so there is nothing to notarise.
+#
+# Run once:  make signing-identity
+SIGN_NAME := wacomdri-self-signed
+SIGN_ID    = $(shell security find-identity -v -p codesigning 2>/dev/null \
+               | grep -c "$(SIGN_NAME)")
+
+.PHONY: signing-identity
+
+signing-identity:
+	@if security find-identity -v -p codesigning | grep -q "$(SIGN_NAME)"; then \
+		echo "Signing identity '$(SIGN_NAME)' already exists."; \
+	else \
+		echo "Creating a self-signed code signing certificate…"; \
+		tmp=$$(mktemp -d); \
+		openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+			-keyout $$tmp/key.pem -out $$tmp/cert.pem \
+			-subj "/CN=$(SIGN_NAME)" \
+			-addext "basicConstraints=critical,CA:false" \
+			-addext "keyUsage=critical,digitalSignature" \
+			-addext "extendedKeyUsage=critical,codeSigning" 2>/dev/null; \
+		openssl pkcs12 -export -out $$tmp/id.p12 -inkey $$tmp/key.pem \
+			-in $$tmp/cert.pem -passout pass: 2>/dev/null; \
+		security import $$tmp/id.p12 -k ~/Library/Keychains/login.keychain-db \
+			-T /usr/bin/codesign -P "" ; \
+		security add-trusted-cert -r trustRoot \
+			-k ~/Library/Keychains/login.keychain-db $$tmp/cert.pem ; \
+		rm -rf $$tmp; \
+		echo "Done. Re-run 'make install', then grant the permissions once more."; \
+		echo "They will survive rebuilds from now on."; \
+	fi
