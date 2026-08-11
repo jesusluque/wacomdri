@@ -55,6 +55,10 @@ public final class DriverService {
         transport.onEvent = { [weak self] event in
             self?.handle(event)
         }
+        transport.onLog = { [weak self] message in
+            self?.log(message)
+        }
+        refreshPermissionState()
         transport.start()
         observeDisplayChanges()
         log("started; waiting for tablet")
@@ -108,6 +112,16 @@ public final class DriverService {
             } else {
                 injector.handle(decoded)
             }
+        }
+    }
+
+    /// Republish permission state so the UI can explain a silent tablet.
+    private func refreshPermissionState() {
+        let input = HIDTransport.hasInputMonitoringAccess()
+        let accessibility = EventInjector.canPostEvents
+        telemetry?.update {
+            $0.hasInputMonitoring = input
+            $0.hasAccessibility = accessibility
         }
     }
 

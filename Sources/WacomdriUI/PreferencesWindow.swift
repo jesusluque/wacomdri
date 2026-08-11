@@ -53,6 +53,14 @@ public struct PreferencesWindow: View {
 
     private var statusText: String {
         if !model.isAgentRunning { return "Agent not running" }
+        // Name the real problem. A tablet that is plugged in but unreadable
+        // looks exactly like an absent one from the agent's point of view.
+        if !model.snapshot.hasInputMonitoring {
+            return "Input Monitoring not granted — the agent cannot read the tablet"
+        }
+        if !model.snapshot.hasAccessibility {
+            return "Accessibility not granted — events will not reach applications"
+        }
         if !model.snapshot.isConnected { return "Agent running — tablet not connected" }
         if let tool = model.snapshot.toolType { return "Tablet connected — \(tool) in range" }
         return "Tablet connected"

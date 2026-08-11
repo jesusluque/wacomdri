@@ -22,6 +22,10 @@ public final class HIDTransport {
     /// Called on the run loop the transport is scheduled on.
     public var onEvent: ((Event) -> Void)?
 
+    /// Diagnostics. A silent failure here is the worst kind: the tablet is
+    /// plugged in, the process is running, and nothing happens.
+    public var onLog: ((String) -> Void)?
+
     /// Take exclusive ownership so macOS's own driver stops moving the cursor.
     /// Disable only for diagnostics.
     public let seize: Bool
@@ -96,7 +100,17 @@ public final class HIDTransport {
         let options: IOOptionBits = seize
             ? IOOptionBits(kIOHIDOptionsTypeSeizeDevice)
             : IOOptionBits(kIOHIDOptionsTypeNone)
-        guard IOHIDDeviceOpen(device, options) == kIOReturnSuccess else { return }
+        let result = IOHIDDeviceOpen(device, options)
+        guard result == kIOReturnSuccess else {
+            // Say why. Failing to open a device that is demonstrably plugged in
+            // looks identical to the device being absent, and the usual cause —
+            // missing Input Monitoring — is invisible from here otherwise.
+            onLog?("found the tablet but could not open it: \(Self.describe(result))"
+                + (Self.hasInputMonitoringAccess()
+                    ? ""
+                    : " — Input Monitoring is not granted to this binary"))
+            return
+        }
 
         self.device = device
 
@@ -140,6 +154,16 @@ public final class HIDTransport {
         _ = IOHIDDeviceSetReport(
             device, kIOHIDReportTypeFeature, CFIndex(Intuos3Mode.reportID),
             &payload, payload.count)
+    }
+
+    static func describe(_ code: IOReturn) -> String {
+        switch code {
+        case kIOReturnNotPrivileged: return "not privileged"
+        case kIOReturnExclusiveAccess: return "another process holds it exclusively"
+        case kIOReturnNotPermitted: return "not permitted"
+        case kIOReturnNoDevice: return "no device"
+        default: return "IOReturn 0x" + String(format: "%08x", UInt32(bitPattern: code))
+        }
     }
 
     /// Reports arrive with the leading report ID included and are 10 bytes,

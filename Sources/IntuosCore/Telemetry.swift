@@ -9,6 +9,11 @@ import Foundation
 public struct TelemetrySnapshot: Codable, Sendable {
     public var isConnected = false
 
+    /// Permission state, so the UI can name the actual problem instead of
+    /// reporting a plugged-in tablet as absent.
+    public var hasInputMonitoring = true
+    public var hasAccessibility = true
+
     /// Description of the tool in proximity, or nil when nothing is in range.
     public var toolType: String?
     public var isEraser = false

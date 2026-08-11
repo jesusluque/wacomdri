@@ -140,6 +140,8 @@ signing-identity:
 		echo "Signing identity '$(SIGN_NAME)' already exists."; \
 	else \
 		echo "Creating a self-signed code signing certificate…"; \
+		: "the PKCS12 password is throwaway - LibreSSL and security disagree"; \
+		: "about empty ones, and the file is deleted moments later"; \
 		tmp=$$(mktemp -d); \
 		openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
 			-keyout $$tmp/key.pem -out $$tmp/cert.pem \
@@ -148,9 +150,9 @@ signing-identity:
 			-addext "keyUsage=critical,digitalSignature" \
 			-addext "extendedKeyUsage=critical,codeSigning" 2>/dev/null; \
 		openssl pkcs12 -export -out $$tmp/id.p12 -inkey $$tmp/key.pem \
-			-in $$tmp/cert.pem -passout pass: 2>/dev/null; \
+			-in $$tmp/cert.pem -passout pass:wacomdri 2>/dev/null; \
 		security import $$tmp/id.p12 -k ~/Library/Keychains/login.keychain-db \
-			-T /usr/bin/codesign -P "" ; \
+			-T /usr/bin/codesign -P wacomdri ; \
 		security add-trusted-cert -r trustRoot \
 			-k ~/Library/Keychains/login.keychain-db $$tmp/cert.pem ; \
 		rm -rf $$tmp; \
