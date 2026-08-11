@@ -82,6 +82,9 @@ install: release
 	sed -e 's|__PREFIX__|$(PREFIX)|g' -e 's|__LOGDIR__|$(LOGDIR)|g' \
 		Packaging/$(LABEL).plist > $(PLIST)
 	-launchctl bootout gui/$$(id -u)/$(LABEL) 2>/dev/null
+	@# An interrupted install can leave a process launchd no longer supervises,
+	@# and two agents fighting over the tablet inject every event twice.
+	-pkill -f "$(PREFIX)/bin/wacomdrid" 2>/dev/null || true
 	launchctl bootstrap gui/$$(id -u) $(PLIST)
 	@echo
 	@echo "Installed. The first run will ask for Input Monitoring, and needs"
@@ -96,6 +99,7 @@ uninstall:
 
 restart:
 	-launchctl bootout gui/$$(id -u)/$(LABEL) 2>/dev/null
+	-pkill -f "$(PREFIX)/bin/wacomdrid" 2>/dev/null || true
 	launchctl bootstrap gui/$$(id -u) $(PLIST)
 
 status:
