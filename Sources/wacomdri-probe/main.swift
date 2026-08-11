@@ -62,7 +62,7 @@ let usage = """
 wacomdri-probe — raw HID dump for the Wacom Intuos3 (PTZ-630)
 
 USAGE
-  sudo wacomdri-probe [options]
+  wacomdri-probe [options]
 
 OPTIONS
   -l, --list          List every HID device on the system and exit
@@ -73,11 +73,13 @@ OPTIONS
   -h, --help          Show this help
 
 NOTES
-  Seizing normally requires root, hence sudo. Without --no-mode-switch the
+  Neither reading reports nor seizing the device requires root: Input
+  Monitoring is enough, and seizing succeeds as a normal user. Without
+  --no-mode-switch the
   tablet is switched into full tablet mode; run once with --no-mode-switch to
   see the difference in what it reports.
 
-  Capture fixtures with:  sudo wacomdri-probe | tee fixtures/raw.txt
+  Capture fixtures with:  wacomdri-probe | tee fixtures/raw.txt
 """
 
 // MARK: - Formatting helpers
@@ -223,7 +225,6 @@ final class Probe {
         let result = IOHIDDeviceOpen(device, options)
         if result != kIOReturnSuccess {
             note("  IOHIDDeviceOpen(\(self.options.seize ? "seize" : "shared")) FAILED: \(ioReturnDescription(result))")
-            note("  (seizing usually requires root — try sudo)")
             return
         }
         note("  opened \(self.options.seize ? "with seize" : "shared")")
@@ -364,9 +365,6 @@ if options.listAll {
 
 note("wacomdri-probe — target \(Intuos3.name)")
 note("running as uid \(getuid())")
-if getuid() != 0 && options.seize {
-    note("WARNING: not running as root; seizing the device will probably fail")
-}
 
 let probe = Probe(options: options)
 

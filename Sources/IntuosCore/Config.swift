@@ -154,8 +154,12 @@ public struct Configuration: Codable, Sendable, Equatable {
         try data.write(to: url, options: .atomic)
     }
 
-    /// Shared between the daemon (which runs as root) and the preferences app,
-    /// hence a system-wide location rather than one inside a home directory.
-    public static let defaultURL = URL(
-        fileURLWithPath: "/Library/Application Support/wacomdri/config.json")
+    /// The driver runs as a per-user LaunchAgent, not a system daemon, so its
+    /// settings live in the user's own Application Support directory. Nothing
+    /// here needs root, and settings are per-user anyway.
+    public static let userURL: URL = {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first ?? URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support")
+        return base.appendingPathComponent("wacomdri/config.json")
+    }()
 }

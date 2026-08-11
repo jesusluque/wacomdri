@@ -29,6 +29,12 @@ let package = Package(
             dependencies: ["IntuosCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
+        // The driver agent itself.
+        .executableTarget(
+            name: "wacomdrid",
+            dependencies: ["IntuosCore"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
         .testTarget(
             name: "IntuosCoreTests",
             dependencies: ["IntuosCore"],

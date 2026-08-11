@@ -32,10 +32,11 @@ clean:
 list: build
 	$(BUILD_DIR)/wacomdri-probe --list
 
-# Dump raw HID reports. Seizing the device requires root, hence sudo.
+# Dump raw HID reports. No root needed: Input Monitoring is enough, and seizing
+# the device succeeds as a normal user.
 # Capture fixtures with:  make probe | tee fixtures/raw.txt
 probe: build
-	sudo $(BUILD_DIR)/wacomdri-probe
+	$(BUILD_DIR)/wacomdri-probe --no-seize
 
 # Inspect what actually arrives as NSEvent tablet data.
 scope: $(BUNDLE_DIR)/PressureScope.app
@@ -53,3 +54,45 @@ $(BUNDLE_DIR)/PressureScope.app: build Packaging/PressureScope-Info.plist
 	cp $(BUILD_DIR)/PressureScope $@/Contents/MacOS/PressureScope
 	codesign --force --sign - $@
 	@echo "built $@"
+
+## --- Install ----------------------------------------------------------------
+
+# Everything installs into the user's home: the driver is a LaunchAgent, not a
+# system daemon, so nothing here needs sudo.
+PREFIX  ?= $(HOME)/.local
+LABEL   := tv.mediapro.wacomdri
+AGENTS  := $(HOME)/Library/LaunchAgents
+LOGDIR  := $(HOME)/Library/Logs
+PLIST   := $(AGENTS)/$(LABEL).plist
+
+.PHONY: install uninstall restart logs status
+
+install: release
+	mkdir -p $(PREFIX)/bin $(AGENTS) $(LOGDIR)
+	cp $(BUILD_DIR)/wacomdrid $(PREFIX)/bin/wacomdrid
+	codesign --force --sign - $(PREFIX)/bin/wacomdrid
+	sed -e 's|__PREFIX__|$(PREFIX)|g' -e 's|__LOGDIR__|$(LOGDIR)|g' \
+		Packaging/$(LABEL).plist > $(PLIST)
+	-launchctl bootout gui/$$(id -u)/$(LABEL) 2>/dev/null
+	launchctl bootstrap gui/$$(id -u) $(PLIST)
+	@echo
+	@echo "Installed. The first run will ask for Input Monitoring, and needs"
+	@echo "Accessibility granted to $(PREFIX)/bin/wacomdrid for events to reach"
+	@echo "applications: System Settings > Privacy & Security."
+	@echo "Logs: $(LOGDIR)/wacomdri.log"
+
+uninstall:
+	-launchctl bootout gui/$$(id -u)/$(LABEL) 2>/dev/null
+	rm -f $(PLIST) $(PREFIX)/bin/wacomdrid
+	@echo "Uninstalled. Config left at $(HOME)/Library/Application Support/wacomdri."
+
+restart:
+	-launchctl bootout gui/$$(id -u)/$(LABEL) 2>/dev/null
+	launchctl bootstrap gui/$$(id -u) $(PLIST)
+
+status:
+	@launchctl print gui/$$(id -u)/$(LABEL) 2>/dev/null | head -20 \
+		|| echo "not loaded"
+
+logs:
+	tail -f $(LOGDIR)/wacomdri.log

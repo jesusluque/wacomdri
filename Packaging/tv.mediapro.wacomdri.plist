@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>tv.mediapro.wacomdri</string>
+
+	<!-- Path is rewritten by `make install`. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__PREFIX__/bin/wacomdrid</string>
+	</array>
+
+	<!-- A LaunchAgent, not a LaunchDaemon: seizing the tablet and reading its
+	     reports both work unprivileged, and posting events needs a login
+	     session anyway. -->
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+
+	<key>StandardOutPath</key>
+	<string>__LOGDIR__/wacomdri.log</string>
+	<key>StandardErrorPath</key>
+	<string>__LOGDIR__/wacomdri.log</string>
+
+	<key>ProcessType</key>
+	<string>Interactive</string>
+</dict>
+</plist>
