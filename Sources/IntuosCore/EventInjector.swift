@@ -3,11 +3,43 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-/// Which macOS mouse button a barrel button drives.
-public enum BarrelAction: String, Sendable, Codable {
+/// What one of the two barrel buttons on the pen does.
+///
+/// The rocker has an upper and a lower position, each assignable independently,
+/// as in Wacom's own driver.
+public enum BarrelAction: Sendable, Codable, Equatable, Hashable {
     case none
+    case leftClick
     case rightClick
     case middleClick
+    case doubleClick
+    /// Press and release a key.
+    case tapKey(code: UInt16, modifiers: Modifiers)
+    /// Hold a key for as long as the barrel button is held.
+    case holdKey(code: UInt16, modifiers: Modifiers)
+
+    var mouseButton: CGMouseButton? {
+        switch self {
+        case .leftClick, .doubleClick: return .left
+        case .rightClick: return .right
+        case .middleClick: return .center
+        case .none, .tapKey, .holdKey: return nil
+        }
+    }
+
+    public var displayName: String {
+        switch self {
+        case .none: return "Nothing"
+        case .leftClick: return "Left click"
+        case .rightClick: return "Right click"
+        case .middleClick: return "Middle click"
+        case .doubleClick: return "Double click"
+        case .tapKey(let code, let modifiers):
+            return modifiers.symbols + KeyCode.name(for: code)
+        case .holdKey(let code, let modifiers):
+            return "Hold " + modifiers.symbols + KeyCode.name(for: code)
+        }
+    }
 }
 
 /// Turns decoded tablet events into synthetic macOS input events.
@@ -34,6 +66,7 @@ public final class EventInjector {
     private var button1Down = false
     private var button2Down = false
     private var lastPoint: CGPoint?
+    private var lastPressure: Double = 0
     private var currentTool: ToolIdentity?
 
     public init(
@@ -120,23 +153,35 @@ public final class EventInjector {
 
         if wantButton1 != button1Down {
             button1Down = wantButton1
-            let button = cgButton(for: barrelButton1)
-            post(
-                type: eventType(for: barrelButton1, down: wantButton1),
-                button: button, at: point, sample: sample, tool: tool, pressure: pressure)
+            perform(barrelButton1, down: wantButton1,
+                    at: point, sample: sample, tool: tool, pressure: pressure)
             return
         }
 
         if wantButton2 != button2Down {
             button2Down = wantButton2
-            let button = cgButton(for: barrelButton2)
-            post(
-                type: eventType(for: barrelButton2, down: wantButton2),
-                button: button, at: point, sample: sample, tool: tool, pressure: pressure)
+            perform(barrelButton2, down: wantButton2,
+                    at: point, sample: sample, tool: tool, pressure: pressure)
             return
         }
 
         // No transition: a move, or a drag if something is held.
+        //
+        // A pen is never perfectly still, so holding it against the tablet used
+        // to emit a continuous stream of drag events. Menus read that as
+        // drag-to-select and dismiss on release, which is why clicking a
+        // dropdown or a context menu would open it and then lose it the moment
+        // the tip or the barrel button came up.
+        //
+        // Movement that does not shift the cursor by a whole pixel is therefore
+        // dropped — unless pressure changed, which still matters to a drawing
+        // app even when the nib has not travelled.
+        if let last = lastPoint,
+           last.rounded() == point.rounded(),
+           abs(pressure - lastPressure) < 0.002 {
+            return
+        }
+
         let type: CGEventType
         let button: CGMouseButton
         if tipDown {
@@ -156,13 +201,57 @@ public final class EventInjector {
         post(type: type, button: button, at: point, sample: sample, tool: tool, pressure: pressure)
     }
 
+    /// Carry out a barrel button transition, whatever it is bound to.
+    private func perform(
+        _ action: BarrelAction, down: Bool, at point: CGPoint,
+        sample: PenSample, tool: ToolIdentity, pressure: Double
+    ) {
+        switch action {
+        case .none:
+            break
+
+        case .leftClick, .rightClick, .middleClick:
+            post(type: eventType(for: action, down: down), button: cgButton(for: action),
+                 at: point, sample: sample, tool: tool, pressure: pressure)
+
+        case .doubleClick:
+            // Only on the press; a double click is a gesture, not a held state.
+            // The second click carries clickState 2, which is what makes the
+            // system treat the pair as a double click rather than two singles.
+            guard down else { break }
+            for clickState in 1...2 {
+                post(type: .leftMouseDown, button: .left, at: point,
+                     sample: sample, tool: tool, pressure: pressure, clickState: clickState)
+                post(type: .leftMouseUp, button: .left, at: point,
+                     sample: sample, tool: tool, pressure: pressure, clickState: clickState)
+            }
+
+        case .tapKey(let code, let modifiers):
+            guard down else { break }
+            postKey(code: code, modifiers: modifiers, down: true)
+            postKey(code: code, modifiers: modifiers, down: false)
+
+        case .holdKey(let code, let modifiers):
+            postKey(code: code, modifiers: modifiers, down: down)
+        }
+    }
+
+    private func postKey(code: UInt16, modifiers: Modifiers, down: Bool) {
+        guard let event = CGEvent(
+            keyboardEventSource: nil, virtualKey: CGKeyCode(code), keyDown: down)
+        else { return }
+        event.flags = modifiers.cgFlags
+        event.post(tap: .cghidEventTap)
+    }
+
     private func post(
         type: CGEventType,
         button: CGMouseButton,
         at point: CGPoint,
         sample: PenSample,
         tool: ToolIdentity,
-        pressure: Double
+        pressure: Double,
+        clickState: Int = 1
     ) {
         guard let event = CGEvent(
             mouseEventSource: nil, mouseType: type,
@@ -209,11 +298,12 @@ public final class EventInjector {
                 .mouseEventDeltaY, value: Int64((point.y - last.y).rounded()))
         }
         lastPoint = point
+        lastPressure = pressure
 
         // A click state of 0 on a down event makes some apps ignore the click.
         if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown
             || type == .leftMouseUp || type == .rightMouseUp || type == .otherMouseUp {
-            event.setIntegerValueField(.mouseEventClickState, value: 1)
+            event.setIntegerValueField(.mouseEventClickState, value: Int64(clickState))
         }
 
         event.post(tap: .cghidEventTap)
@@ -294,41 +384,42 @@ public final class EventInjector {
         if button1Down {
             button1Down = false
             sample.barrelButton1 = false
-            post(
-                type: eventType(for: barrelButton1, down: false),
-                button: cgButton(for: barrelButton1),
-                at: point, sample: sample, tool: tool, pressure: 0)
+            perform(barrelButton1, down: false,
+                    at: point, sample: sample, tool: tool, pressure: 0)
         }
         if button2Down {
             button2Down = false
-            post(
-                type: eventType(for: barrelButton2, down: false),
-                button: cgButton(for: barrelButton2),
-                at: point, sample: sample, tool: tool, pressure: 0)
+            perform(barrelButton2, down: false,
+                    at: point, sample: sample, tool: tool, pressure: 0)
         }
     }
 
     private func cgButton(for action: BarrelAction) -> CGMouseButton {
-        switch action {
-        case .rightClick: return .right
-        case .middleClick: return .center
-        case .none: return .left
-        }
+        action.mouseButton ?? .left
     }
 
     private func eventType(for action: BarrelAction, down: Bool) -> CGEventType {
-        switch action {
-        case .rightClick: return down ? .rightMouseDown : .rightMouseUp
-        case .middleClick: return down ? .otherMouseDown : .otherMouseUp
-        case .none: return .mouseMoved
+        switch action.mouseButton {
+        case .right: return down ? .rightMouseDown : .rightMouseUp
+        case .center: return down ? .otherMouseDown : .otherMouseUp
+        case .left: return down ? .leftMouseDown : .leftMouseUp
+        default: return .mouseMoved
         }
     }
 
     private func draggedType(for action: BarrelAction) -> CGEventType {
-        switch action {
-        case .rightClick: return .rightMouseDragged
-        case .middleClick: return .otherMouseDragged
-        case .none: return .mouseMoved
+        switch action.mouseButton {
+        case .right: return .rightMouseDragged
+        case .center: return .otherMouseDragged
+        case .left: return .leftMouseDragged
+        default: return .mouseMoved
         }
+    }
+}
+
+extension CGPoint {
+    /// Whole-pixel position, used to tell real movement from pen jitter.
+    func rounded() -> CGPoint {
+        CGPoint(x: x.rounded(), y: y.rounded())
     }
 }

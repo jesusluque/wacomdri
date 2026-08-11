@@ -176,22 +176,15 @@ public struct PenView: View {
 
             Divider().padding(.vertical, 4)
 
-            Text("Barrel buttons")
+            Text("Pen buttons")
                 .font(.headline)
+            Text("The rocker on the pen has two positions, each assignable "
+                + "separately.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-            Picker("Lower button", selection: $model.configuration.barrelButton1) {
-                Text("Nothing").tag(BarrelAction.none)
-                Text("Right click").tag(BarrelAction.rightClick)
-                Text("Middle click").tag(BarrelAction.middleClick)
-            }
-            .frame(width: 280)
-
-            Picker("Upper button", selection: $model.configuration.barrelButton2) {
-                Text("Nothing").tag(BarrelAction.none)
-                Text("Right click").tag(BarrelAction.rightClick)
-                Text("Middle click").tag(BarrelAction.middleClick)
-            }
-            .frame(width: 280)
+            BarrelButtonRow(title: "Upper", action: $model.configuration.barrelButton2)
+            BarrelButtonRow(title: "Lower", action: $model.configuration.barrelButton1)
 
             Spacer()
         }
@@ -229,5 +222,86 @@ public struct PenView: View {
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.08)))
+    }
+}
+
+/// One position of the pen's rocker switch.
+public struct BarrelButtonRow: View {
+    let title: String
+    @Binding var action: BarrelAction
+
+    @StateObject private var capture = KeyCaptureController()
+
+    private enum Choice: String, CaseIterable, Identifiable {
+        case none = "Nothing"
+        case left = "Left click"
+        case right = "Right click"
+        case middle = "Middle click"
+        case double = "Double click"
+        case tap = "Press key"
+        case hold = "Hold key"
+        var id: String { rawValue }
+    }
+
+    private var choice: Choice {
+        switch action {
+        case .none: return .none
+        case .leftClick: return .left
+        case .rightClick: return .right
+        case .middleClick: return .middle
+        case .doubleClick: return .double
+        case .tapKey: return .tap
+        case .holdKey: return .hold
+        }
+    }
+
+    public var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .frame(width: 54, alignment: .leading)
+
+            Picker("", selection: Binding(get: { choice }, set: apply)) {
+                ForEach(Choice.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .labelsHidden()
+            .frame(width: 150)
+
+            if choice == .tap || choice == .hold {
+                Button(action: beginCapture) {
+                    Text(capture.isCapturing ? "Press any key…" : action.displayName)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .tint(capture.isCapturing ? .accentColor : nil)
+            }
+        }
+    }
+
+    private func beginCapture() {
+        capture.begin { code, modifiers in
+            action = choice == .hold
+                ? .holdKey(code: code, modifiers: modifiers)
+                : .tapKey(code: code, modifiers: modifiers)
+        }
+    }
+
+    /// Switching between the two key modes keeps whatever key was bound.
+    private func apply(_ newChoice: Choice) {
+        let existing: (UInt16, Modifiers)?
+        switch action {
+        case .tapKey(let c, let m), .holdKey(let c, let m): existing = (c, m)
+        default: existing = nil
+        }
+
+        switch newChoice {
+        case .none: action = .none
+        case .left: action = .leftClick
+        case .right: action = .rightClick
+        case .middle: action = .middleClick
+        case .double: action = .doubleClick
+        case .tap: action = .tapKey(code: existing?.0 ?? KeyCode.space, modifiers: existing?.1 ?? [])
+        case .hold: action = .holdKey(code: existing?.0 ?? KeyCode.space, modifiers: existing?.1 ?? [])
+        }
     }
 }
