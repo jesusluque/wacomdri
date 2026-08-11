@@ -73,6 +73,15 @@ public final class EventInjector {
     private var dragOrigin: CGPoint?
     private var isDragging = false
 
+    /// Turns rapid taps in the same place into double clicks.
+    private var clickCounter = ClickCounter()
+
+    /// How long after a tap a second one still counts as a double click.
+    public var doubleClickInterval: TimeInterval {
+        get { clickCounter.interval }
+        set { clickCounter.interval = newValue }
+    }
+
     /// How far the pen must travel from the press before drag events start.
     ///
     /// This is what separates a click from a drag, and it has to exist because a
@@ -161,9 +170,11 @@ public final class EventInjector {
         if sample.tipDown != tipDown {
             tipDown = sample.tipDown
             beginOrEndDrag(pressed: tipDown, at: point)
+            if tipDown { advanceClickCount(at: point) }
             post(
                 type: tipDown ? .leftMouseDown : .leftMouseUp,
-                button: .left, at: point, sample: sample, tool: tool, pressure: pressure)
+                button: .left, at: point, sample: sample, tool: tool,
+                pressure: pressure, clickState: clickCounter.current)
             return
         }
 
@@ -220,7 +231,15 @@ public final class EventInjector {
             button = .left
         }
 
-        post(type: type, button: button, at: point, sample: sample, tool: tool, pressure: pressure)
+        post(type: type, button: button, at: point, sample: sample, tool: tool,
+             pressure: pressure, clickState: clickCounter.current)
+    }
+
+    /// Count this press as a continuation of the previous one when it lands
+    /// soon enough and close enough — which is what turns two taps of the nib
+    /// into a double click rather than two unrelated clicks.
+    private func advanceClickCount(at point: CGPoint) {
+        _ = clickCounter.register(at: point, now: ProcessInfo.processInfo.systemUptime)
     }
 
     /// Track where a press started so movement can be judged against it.
@@ -248,13 +267,16 @@ public final class EventInjector {
             break
 
         case .leftClick, .rightClick, .middleClick:
+            if down { advanceClickCount(at: point) }
             post(type: eventType(for: action, down: down), button: cgButton(for: action),
-                 at: point, sample: sample, tool: tool, pressure: pressure)
+                 at: point, sample: sample, tool: tool, pressure: pressure,
+                 clickState: clickCounter.current)
 
         case .doubleClick:
             // Only on the press; a double click is a gesture, not a held state.
             guard down else { break }
 
+            clickCounter.reset()
             post(type: .leftMouseDown, button: .left, at: point,
                  sample: sample, tool: tool, pressure: pressure, clickState: 1)
             post(type: .leftMouseUp, button: .left, at: point,

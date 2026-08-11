@@ -100,6 +100,12 @@ public struct Configuration: Codable, Sendable, Equatable {
     public var preserveAspectRatio: Bool
 
     public var pressureCurve: PressureCurve
+
+    /// How long after a tap a second one still counts as a double click.
+    /// Defaults to the system setting; a pen often wants longer than a mouse,
+    /// because lifting and landing the nib takes more time than a finger.
+    public var doubleClickInterval: TimeInterval
+
     public var barrelButton1: BarrelAction
     public var barrelButton2: BarrelAction
     public var pad: PadConfiguration
@@ -109,6 +115,7 @@ public struct Configuration: Codable, Sendable, Equatable {
         tabletArea: TabletArea = .full,
         preserveAspectRatio: Bool = true,
         pressureCurve: PressureCurve = .linear,
+        doubleClickInterval: TimeInterval = ClickCounter.systemInterval,
         barrelButton1: BarrelAction = .rightClick,
         barrelButton2: BarrelAction = .middleClick,
         pad: PadConfiguration = PadConfiguration()
@@ -117,6 +124,7 @@ public struct Configuration: Codable, Sendable, Equatable {
         self.tabletArea = tabletArea
         self.preserveAspectRatio = preserveAspectRatio
         self.pressureCurve = pressureCurve
+        self.doubleClickInterval = doubleClickInterval
         self.barrelButton1 = barrelButton1
         self.barrelButton2 = barrelButton2
         self.pad = pad

@@ -9,23 +9,43 @@ public struct MappingView: View {
     @ObservedObject var model: PreferencesModel
 
     private enum RegionPreset: String, CaseIterable, Identifiable {
-        case whole = "Whole display"
+        case whole = "Whole"
         case left = "Left half"
         case right = "Right half"
+        case custom = "Custom"
         var id: String { rawValue }
 
-        var fraction: CGRect {
+        var fraction: CGRect? {
             switch self {
             case .whole: return ScreenRegion.whole
             case .left: return ScreenRegion.leftHalf
             case .right: return ScreenRegion.rightHalf
+            case .custom: return nil
             }
         }
     }
 
     private var currentPreset: RegionPreset {
         let fraction = model.configuration.screen.fraction
-        return RegionPreset.allCases.first { $0.fraction == fraction } ?? .whole
+        return RegionPreset.allCases.first { $0.fraction == fraction } ?? .custom
+    }
+
+    /// Aspect ratio of the display being carved up, so the model in the editor
+    /// is proportioned like the real thing.
+    private var targetAspect: CGFloat {
+        let bounds = ScreenRegion.baseBounds(for: model.configuration.screen.target)
+        guard bounds.height > 0 else { return 16.0 / 10.0 }
+        return bounds.width / bounds.height
+    }
+
+    /// Where the pen sits inside the mapped zone, for the live dot.
+    private var penInZone: CGPoint? {
+        guard model.snapshot.toolType != nil else { return nil }
+        let area = model.configuration.makeMapper().effectiveArea
+        guard area.width > 0, area.height > 0 else { return nil }
+        return CGPoint(
+            x: min(max(Double(model.snapshot.x - area.x) / Double(area.width), 0), 1),
+            y: min(max(Double(model.snapshot.y - area.y) / Double(area.height), 0), 1))
     }
 
     public var body: some View {
@@ -45,12 +65,27 @@ public struct MappingView: View {
 
             Picker("Area", selection: Binding(
                 get: { currentPreset },
-                set: { model.configuration.screen.fraction = $0.fraction })
+                set: { preset in
+                    // "Custom" is where you already are once the zone stops
+                    // matching a preset, so selecting it changes nothing.
+                    if let fraction = preset.fraction {
+                        model.configuration.screen.fraction = fraction
+                    }
+                })
             ) {
                 ForEach(RegionPreset.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
-            .frame(width: 320)
+            .frame(width: 380)
+
+            Text("Drag the zone to move it, or its corner to resize.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ScreenRegionEditor(
+                fraction: $model.configuration.screen.fraction,
+                displayAspect: targetAspect,
+                penPosition: penInZone)
 
             Toggle("Keep proportions", isOn: $model.configuration.preserveAspectRatio)
             Text("The tablet is 4:3. Keeping proportions crops the tablet rather "

@@ -186,6 +186,27 @@ public struct PenView: View {
             BarrelButtonRow(title: "Upper", action: $model.configuration.barrelButton2)
             BarrelButtonRow(title: "Lower", action: $model.configuration.barrelButton1)
 
+            Divider().padding(.vertical, 4)
+
+            Text("Double click speed")
+                .font(.headline)
+            HStack(spacing: 12) {
+                Text("Fast").font(.caption).foregroundStyle(.secondary)
+                Slider(value: $model.configuration.doubleClickInterval, in: 0.2...1.2)
+                    .frame(width: 200)
+                Text("Slow").font(.caption).foregroundStyle(.secondary)
+                Text(String(format: "%.2f s", model.configuration.doubleClickInterval))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            Text("How long after a tap a second one still counts as a double "
+                + "click. A pen usually wants longer than a mouse: lifting and "
+                + "landing the nib takes more time than a finger.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 400, alignment: .leading)
+
             Spacer()
         }
         .padding(20)

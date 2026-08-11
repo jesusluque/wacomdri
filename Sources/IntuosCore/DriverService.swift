@@ -34,6 +34,7 @@ public final class DriverService {
             pressureCurve: configuration.pressureCurve,
             barrelButton1: configuration.barrelButton1,
             barrelButton2: configuration.barrelButton2)
+        self.injector.doubleClickInterval = configuration.doubleClickInterval
         self.padMapper = PadMapper(configuration: configuration.pad)
     }
 
@@ -79,6 +80,7 @@ public final class DriverService {
         injector.pressureCurve = configuration.pressureCurve
         injector.barrelButton1 = configuration.barrelButton1
         injector.barrelButton2 = configuration.barrelButton2
+        injector.doubleClickInterval = configuration.doubleClickInterval
         padMapper.configuration = configuration.pad
         log("configuration reloaded")
     }
